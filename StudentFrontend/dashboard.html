@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Dashboard</title>
+
+    <!-- Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<h2>Student Marks Dashboard</h2>
+
+<canvas id="myChart" width="400" height="200"></canvas>
+<script>
+
+fetch("http://localhost:9090/getData")
+.then(response => response.json())
+.then(data => {
+
+    let names = [];
+    let marks = [];
+
+    data.forEach(item => {
+        names.push(item.name);
+        marks.push(item.marks);
+    });
+
+    let ctx = document.getElementById("myChart").getContext("2d");
+
+    new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: names,
+            datasets: [{
+                label: "Marks",
+                data: marks
+            }]
+        }
+    });
+
+});
+
+</script>
+
+</body>
+</html>
