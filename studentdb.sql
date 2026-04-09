@@ -1,0 +1,15 @@
+CREATE DATABASE studentDB;
+USE studentDB;
+
+CREATE TABLE students (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100),
+    marks INT,
+    grade VARCHAR(10)
+);
+SHOW TABLES;
+SELECT * FROM students;
+DELETE FROM students;
+DELETE FROM students WHERE id=12;
+SET SQL_SAFE_UPDATES = 0;
+
