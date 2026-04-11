@@ -3,11 +3,12 @@
 <head>
     <title>Student Management</title>
 </head>
+
 <body>
 
 <h2>Student Form</h2>
 
-<form action="http://localhost:9090/addStudent" method="post">
+<form action="/addStudent" method="post">
 
 Name: <input type="text" name="name"><br><br>
 Marks: <input type="number" name="marks"><br><br>
@@ -16,10 +17,18 @@ Grade: <input type="text" name="grade"><br><br>
 <button type="submit">Add Student</button>
 
 </form>
+
 <br><br>
-<a href="http://localhost:9090/viewStudents">
+
+<a href="/viewStudents">
     <button>View Students</button>
-</a> 
+</a>
+
+<br><br>
+
+<button onclick="window.open('http://13.127.206.22:9090/', '_blank')">
+    Open Full Website
+</button>
 
 </body>
 </html>

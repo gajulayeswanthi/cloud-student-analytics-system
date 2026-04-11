@@ -1,214 +1,170 @@
 package com.cloud.student;
-import com.sun.net.httpserver.HttpServer;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpExchange;
-import java.sql.*;
+
+import com.sun.net.httpserver.*;
 import java.io.*;
 import java.net.InetSocketAddress;
+import java.sql.*;
+import java.nio.file.Files;
+import java.io.File;
+
 public class SimpleServer {
-	public static void main(String[] args) throws Exception {
+
+    public static void main(String[] args) throws Exception {
 
         HttpServer server = HttpServer.create(new InetSocketAddress(9090), 0);
 
+        server.createContext("/", new HomeHandler());
         server.createContext("/addStudent", new MyHandler());
         server.createContext("/viewStudents", new ViewHandler());
         server.createContext("/deleteStudent", new DeleteHandler());
-        server.createContext("/editStudent", new EditHandler());
-        server.createContext("/updateStudent", new UpdateHandler());
-        server.createContext("/getData", new DataHandler());
+
         server.setExecutor(null);
         server.start();
 
         System.out.println("Server started at http://localhost:9090");
     }
 
-	static class MyHandler implements HttpHandler {
-	    public void handle(HttpExchange t) throws IOException {
+  
+    static class HomeHandler implements HttpHandler {
+        public void handle(HttpExchange t) throws IOException {
 
-	        InputStream is = t.getRequestBody();
-	        BufferedReader br = new BufferedReader(new InputStreamReader(is));
-	        String data = br.readLine();
+            String path = t.getRequestURI().getPath();
+            if (path.equals("/")) path = "/index.html";
 
-	        String name = "";
-	        int marks = 0;
-	        String grade = "";
+            File file = new File("/home/ec2-user/CloudStudentSystem/StudentFrontend" + path);
 
-	        try {
-	            String[] params = data.split("&");
+            if (!file.exists()) {
+                String res = "404 Not Found";
+                t.sendResponseHeaders(404, res.length());
+                OutputStream os = t.getResponseBody();
+                os.write(res.getBytes());
+                os.close();
+                return;
+            }
 
-	            name = params[0].split("=")[1].replace("+", " ");
-	            marks = Integer.parseInt(params[1].split("=")[1]);
-	            grade = params[2].split("=")[1];
+            byte[] data = Files.readAllBytes(file.toPath());
 
-	            StudentDAO.insertStudent(name, marks, grade);
+            t.getResponseHeaders().add("Content-Type", "text/html");
+            t.sendResponseHeaders(200, data.length);
+            OutputStream os = t.getResponseBody();
+            os.write(data);
+            os.close();
+        }
+    }
 
-	        } catch (Exception e) {
-	            e.printStackTrace();
-	        }
+ 
+    static class MyHandler implements HttpHandler {
+        public void handle(HttpExchange t) throws IOException {
 
-	        String response = "Student Added to Database Successfully";
+            try {
+                String data = new String(t.getRequestBody().readAllBytes());
 
-	        t.sendResponseHeaders(200, response.length());
-	        OutputStream os = t.getResponseBody();
-	        os.write(response.getBytes());
-	        os.close();
-	    }
-	    
-	}
-	static class ViewHandler implements HttpHandler {
-	    public void handle(HttpExchange t) throws IOException {
+                String[] params = data.split("&");
 
-	        StringBuilder response = new StringBuilder();
+                String name = params[0].split("=")[1].replace("+", " ");
+                int marks = Integer.parseInt(params[1].split("=")[1]);
+                String grade = params[2].split("=")[1];
 
-	        response.append("<h2>Student List</h2>");
-	        response.append("<table border='1'>");
-	        response.append("<tr><th>ID</th><th>Name</th><th>Marks</th><th>Grade</th><th>Action</th></tr>");
+                Connection con = DBConnection.getConnection();
 
-	        try {
-	            Connection con = DBConnection.getConnection();
+                String sql = "INSERT INTO students(name, marks, grade) VALUES (?, ?, ?)";
+                PreparedStatement ps = con.prepareStatement(sql);
 
-	            String query = "SELECT * FROM students";
+                ps.setString(1, name);
+                ps.setInt(2, marks);
+                ps.setString(3, grade);
 
-	            PreparedStatement ps = con.prepareStatement(query);
+                ps.executeUpdate();
 
-	            ResultSet rs = ps.executeQuery();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
-	            while (rs.next()) {
-	            	response.append("<tr>");
-	            	response.append("<td>" + rs.getInt("id") + "</td>");
-	            	response.append("<td>" + rs.getString("name").replace("+", " ") + "</td>");
-	            	response.append("<td>" + rs.getInt("marks") + "</td>");
-	            	response.append("<td>" + rs.getString("grade") + "</td>");
-	            	response.append("<td>");
-	            	response.append("<a href='/deleteStudent?id=" + rs.getInt("id") + "'>Delete</a> ");
-	            	response.append("<a href='/editStudent?id=" + rs.getInt("id") + "'>Edit</a>");
-	            	response.append("</td>");
-	            	response.append("</tr>"); 
-	            	
-	            }
-	            response.append("</table>");
+            t.getResponseHeaders().add("Location", "/viewStudents");
+            t.sendResponseHeaders(302, -1);
+            t.getResponseBody().write(new byte[0]);
+             t.getResponseBody().close();
+        }
+    }
+        static class ViewHandler implements HttpHandler {
+    public void handle(HttpExchange t) throws IOException {
 
-	        } catch (Exception e) {
-	            e.printStackTrace();
-	        }
+        StringBuilder sb = new StringBuilder();
 
-	        t.sendResponseHeaders(200, response.length());
-	        OutputStream os = t.getResponseBody();
-	        os.write(response.toString().getBytes());
-	        os.close();
-	    }
-	}
-	static class DeleteHandler implements HttpHandler {
-	    public void handle(HttpExchange t) throws IOException {
+        try {
+            Connection con = DBConnection.getConnection();
 
-	        String query = t.getRequestURI().getQuery();
-	        int id = Integer.parseInt(query.split("=")[1]);
+            sb.append("<h2>Student List</h2>");
+            sb.append("<table border='1'>");
+            sb.append("<tr><th>ID</th><th>Name</th><th>Marks</th><th>Grade</th><th>Action</th></tr>");
 
-	        try {
-	            StudentDAO.deleteStudent(id);
-	        } catch (Exception e) {
-	            e.printStackTrace();
-	        }
+            String sql = "SELECT * FROM students";
+            PreparedStatement ps = con.prepareStatement(sql);
+            ResultSet rs = ps.executeQuery();
 
-	        String response = "Student Deleted Successfully";
+            boolean found = false;
 
-	        t.sendResponseHeaders(200, response.length());
-	        OutputStream os = t.getResponseBody();
-	        os.write(response.getBytes());
-	        os.close();
-	    }
-	}
-	static class EditHandler implements HttpHandler {
-	    public void handle(HttpExchange t) throws IOException {
+            while (rs.next()) {
+                found = true;
 
-	        String query = t.getRequestURI().getQuery();
-	        int id = Integer.parseInt(query.split("=")[1]);
+                sb.append("<tr>");
+                sb.append("<td>").append(rs.getInt("id")).append("</td>");
+                sb.append("<td>").append(rs.getString("name")).append("</td>");
+                sb.append("<td>").append(rs.getInt("marks")).append("</td>");
+                sb.append("<td>").append(rs.getString("grade")).append("</td>");
+                sb.append("<td><a href='/deleteStudent?id=")
+                        .append(rs.getInt("id"))
+                        .append("'>Delete</a></td>");
+                sb.append("</tr>");
+            }
 
-	        StringBuilder response = new StringBuilder();
+            if (!found) {
+                sb.append("<tr><td colspan='5'>NO DATA FOUND</td></tr>");
+            }
 
-	        response.append("<h2>Edit Student</h2>");
-	        response.append("<form action='/updateStudent' method='post'>");
-	        response.append("<input type='hidden' name='id' value='" + id + "'>");
-	        response.append("Marks: <input type='number' name='marks'><br><br>");
-	        response.append("Grade: <input type='text' name='grade'><br><br>");
-	        response.append("<button type='submit'>Update</button>");
-	        response.append("</form>");
+            rs.close();
+            ps.close();
+            con.close();
 
-	        t.sendResponseHeaders(200, response.length());
-	        OutputStream os = t.getResponseBody();
-	        os.write(response.toString().getBytes());
-	        os.close();
-	    }
-	}
-	static class UpdateHandler implements HttpHandler {
-	    public void handle(HttpExchange t) throws IOException {
+        } catch (Exception e) {
+            sb.append("<tr><td colspan='5'>ERROR: ")
+                    .append(e.getMessage())
+                    .append("</td></tr>");
+        }
 
-	        InputStream is = t.getRequestBody();
-	        BufferedReader br = new BufferedReader(new InputStreamReader(is));
-	        String data = br.readLine();
+        sb.append("</table>");
 
-	        try {
-	            String[] params = data.split("&");
+        byte[] res = sb.toString().getBytes();
 
-	            int id = Integer.parseInt(params[0].split("=")[1]);
-	            int marks = Integer.parseInt(params[1].split("=")[1]);
-	            String grade = params[2].split("=")[1];
+        t.getResponseHeaders().add("Content-Type", "text/html");
+        t.sendResponseHeaders(200, res.length);
+        t.getResponseBody().write(res);
+        t.getResponseBody().close();
+    }
+}
 
-	            StudentDAO.updateStudent(id, marks, grade);
+    static class DeleteHandler implements HttpHandler {
+        public void handle(HttpExchange t) throws IOException {
 
-	        } catch (Exception e) {
-	            e.printStackTrace();
-	        }
+            try {
+                String query = t.getRequestURI().getQuery();
+                int id = Integer.parseInt(query.split("=")[1]);
 
-	        String response = "Student Updated Successfully";
+                Connection con = DBConnection.getConnection();
 
-	        t.sendResponseHeaders(200, response.length());
-	        OutputStream os = t.getResponseBody();
-	        os.write(response.getBytes());
-	        os.close();
-	    }
-	}
-	static class DataHandler implements HttpHandler {
-	    public void handle(HttpExchange t) throws IOException {
+                String sql = "DELETE FROM students WHERE id=?";
+                PreparedStatement ps = con.prepareStatement(sql);
+                ps.setInt(1, id);
 
-	        StringBuilder json = new StringBuilder();
-	        json.append("[");
+                ps.executeUpdate();
 
-	        try {
-	            Connection con = DBConnection.getConnection();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
-	            String query = "SELECT * FROM students";
-	            PreparedStatement ps = con.prepareStatement(query);
-	            ResultSet rs = ps.executeQuery();
-
-	            boolean first = true;
-
-	            while (rs.next()) {
-
-	                if (!first) {
-	                    json.append(",");
-	                }
-
-	                json.append("{");
-	                json.append("\"name\":\"" + rs.getString("name").replace("+", " ") + "\",");
-	                json.append("\"marks\":" + rs.getInt("marks"));
-	                json.append("}");
-
-	                first = false;
-	            }
-
-	        } catch (Exception e) {
-	            e.printStackTrace();
-	        }
-
-	        json.append("]");
-
-	        t.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
-	        t.sendResponseHeaders(200, json.length());
-
-	        OutputStream os = t.getResponseBody();
-	        os.write(json.toString().getBytes());
-	        os.close();
-	    }
-	}
+            t.getResponseHeaders().add("Location", "/viewStudents");
+            t.sendResponseHeaders(302, -1);
+            t.close();
+        }
+    }
 }
